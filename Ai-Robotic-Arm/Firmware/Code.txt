@@ -1,0 +1,192 @@
+import speech_recognition as sr
+import cv2
+import serial
+import time
+
+# ----------------------------
+# SERIAL CONNECTION TO ESP32
+# ----------------------------
+
+SERIAL_PORT = "/dev/ttyUSB0"
+BAUD_RATE = 115200
+
+ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+
+time.sleep(2)
+
+print("ESP32 Connected")
+
+
+# ----------------------------
+# VOICE COMMAND FUNCTION
+# ----------------------------
+
+def listen_command():
+
+    recognizer = sr.Recognizer()
+
+    with sr.Microphone() as source:
+
+        print("\nListening for command...")
+
+        recognizer.adjust_for_ambient_noise(source)
+
+        audio = recognizer.listen(source)
+
+    try:
+
+        command = recognizer.recognize_google(audio)
+
+        command = command.lower()
+
+        print("Command:", command)
+
+        return command
+
+    except:
+
+        print("Voice not recognized")
+
+        return None
+
+
+# ----------------------------
+# OBJECT DETECTION FUNCTION
+# ----------------------------
+
+def detect_object(target):
+
+    cap = cv2.VideoCapture(0)
+
+    while True:
+
+        ret, frame = cap.read()
+
+        if not ret:
+            break
+
+        height, width, _ = frame.shape
+
+        center_x = width // 2
+        center_y = height // 2
+
+        # Simulated detection (replace with YOLO later)
+
+        if target == "pen":
+
+            print("Pen detected")
+
+            cap.release()
+
+            cv2.destroyAllWindows()
+
+            return center_x, center_y
+
+        if target == "bottle":
+
+            print("Bottle detected")
+
+            cap.release()
+
+            cv2.destroyAllWindows()
+
+            return center_x, center_y
+
+        cv2.imshow("Camera View", frame)
+
+        if cv2.waitKey(1) == 27:
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+    return None, None
+
+
+# ----------------------------
+# ARM MOVEMENT FUNCTION
+# ----------------------------
+
+def move_arm(x, y):
+
+    command = f"{x},{y}\n"
+
+    ser.write(command.encode())
+
+    print("Sent to ESP32:", command)
+
+    time.sleep(1)
+
+
+def close_gripper():
+
+    ser.write(b"GRIP\n")
+
+    print("Gripper Closed")
+
+
+def open_gripper():
+
+    ser.write(b"OPEN\n")
+
+    print("Gripper Opened")
+
+
+# ----------------------------
+# MAIN SYSTEM LOOP
+# ----------------------------
+
+print("\nAI Voice Controlled Robotic Arm Started")
+
+while True:
+
+    command = listen_command()
+
+    if command is None:
+        continue
+
+    # PICK PEN
+
+    if "pen" in command:
+
+        print("Searching for pen")
+
+        x, y = detect_object("pen")
+
+        if x is not None:
+
+            move_arm(x, y)
+
+            time.sleep(2)
+
+            close_gripper()
+
+    # PICK BOTTLE
+
+    elif "bottle" in command:
+
+        print("Searching for bottle")
+
+        x, y = detect_object("bottle")
+
+        if x is not None:
+
+            move_arm(x, y)
+
+            time.sleep(2)
+
+            close_gripper()
+
+    # RELEASE OBJECT
+
+    elif "release" in command:
+
+        open_gripper()
+
+    # STOP SYSTEM
+
+    elif "stop" in command:
+
+        print("System shutting down")
+
+        break
